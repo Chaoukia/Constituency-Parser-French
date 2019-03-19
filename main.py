@@ -655,7 +655,8 @@ def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True
             else:
                 scores = []
                 for word in words_proposed:
-                    bigram = math.log(probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]])
+#                     bigram = math.log(probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]])
+                    bigram = 0.8*math.log(probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]]) + 0.2*math.log(probas_unigram[dict_terminals_indices[word]])
                     score = log_proba + bigram
                     scores.append((score, word))
                 
