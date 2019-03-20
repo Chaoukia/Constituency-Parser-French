@@ -18,15 +18,15 @@ def ignore_functional_labels(string):
     """
     Description
     ----------------
-    Ignore functional labels in the non terminals of a rule, for example PP-MOD becomes PP
+    Ignore functional labels in the non terminals of a rule, for example PP-MOD becomes PP.
     
     Parameters
     ----------------
-    string : String form of parse tree.
+    string : String, bracketed form of parse tree.
     
     Returns
     ----------------
-    new string form of parse tree
+    String, the corresponding bracketed form of parse tree without functional labels and axiom ''
     """
     
     l = string.split(' ')[1:]
@@ -50,9 +50,9 @@ def extract_nodes(rule):
     
     Returns
     ---------------
-    3-tuple, tuple[0] : the lexical status.
-             tuple[1] : set containing the non terminal nodes.
-             tuple[2] : set containing the terminal nodes.
+    3-tuple, tuple[0] : the lexical status, whether the right hand side of the rule is a word or not.
+             tuple[1] : set containing the non terminal nodes of the rule.
+             tuple[2] : set containing the terminal nodes of the rule
     """
     if rule.is_lexical():
         return True, set((rule._lhs._symbol,)), set((rule._rhs))
@@ -115,11 +115,11 @@ def express_node(rule):
     Returns
     ---------------
     3-tuple, tuple[0] : String describing the rule {'lexical', 'start_node', 'unary', 'binary'}
-             tuple[1] : nltk.grammar.Production, the left hand side of the rule.
-             tuple[2] : nltk.grammar.Production, the right hand side of the rule.
+             tuple[1] : String, the left hand side of the rule.
+             tuple[2] : String, the right hand side of the rule.
     """
     if rule.is_lexical():
-        return 'lexical', rule._lhs._symbol, rule._rhs[0]
+        return 'lexical', rule._lhs._symbol, rule._rhs[0].lower()
     
     else:
         lhs, rhs = rule._lhs._symbol, (rule._rhs[0]._symbol, rule._rhs[1]._symbol)
@@ -131,7 +131,8 @@ def pcfg(data):
     """
     Description
     ----------------
-    Create PCFG model from the data, i.e compute the probability of each rule (conditiona probabilities) statistically from the data
+    Create PCFG model from the data, i.e compute the probability of each rule (conditional probabilities) statistically from the data.
+    Notice that we build the pcfg with lower case terminals since they surely have the same POS tags as their upper case couterparts
     
     Parameters
     ----------------
@@ -162,8 +163,22 @@ def pcfg(data):
     dict_probas : Dictionnary rearranging the elements of dict_pcfg in a way that simplifies the use of the probabilities 
                   in the CYK algorithm, keys in {'lexical', 'unary', 'binary'}                  
                   dictionnary of probabilities.
-                            - keys   : unary nodes (POS tags or non terminals).
-                            - values : probabilities p(node|unary_node)
+                 - dict_probas['lexical']  : dictionnary of lexicons.
+                                           - keys   : terminals; 
+                                           - values : dictionnary of probabilities p(terminal|POS_tag)
+                                                     - keys   : POS tags.
+                                                     - values : p(terminal|POS_tag)
+                 - dict_probas['unary']    : dictionnary of unary laws A->B
+                                           - keys   : non terminals B; 
+                                           - values : dictionnary of probabilities p(B|A), 
+                                                     - keys   : non terminals A.
+                                                     - values : p(B|A)
+                                                                          
+                 - dict_probas['binary']   : dictionnary of binary laws A->BC.
+                                           - keys   : tuples of non terminals (B, C);
+                                           - values : dictionnary of probabilities p(BC|A)
+                                                     - keys   : non terminals A
+                                                     - values : p(BC|A)
     """
     
     # Initalize dictionnaries dict_lexicons, dict_unaries, dict_binaries that we put in dict_pcfg
@@ -220,7 +235,7 @@ def cyk(sentence):
     """
     Description
     ----------------
-    CYK parsing algorithm
+    CYK parsing algorithm.
     
     Parameters
     ----------------
@@ -282,7 +297,7 @@ def not_in_grammar(sentence):
     """
     Description
     ----------------
-    If a sentence is gramatically incorrect, Return its parse tree in a way that allows it to be evaluated with the original parse.
+    If a sentence is gramatically incorrect, Return its parse tree in a way that allows it to be evaluated with the original parse giving 0 with any evaluation metric.
     
     Parameters
     ----------------
@@ -311,7 +326,7 @@ def build_parentheses(back_track, scores, sentence):
     Parameters
     ---------------
     back_track, scores : Outputs of function cyk.
-    sentence           : List of strings containing the space-tokenized sentence
+    sentence           : List of strings containing the space-tokenized sentence.
                  
     Returns
     ---------------
@@ -402,12 +417,6 @@ def score(true_parse, proposed_parse):
     thescorer = scorer.Scorer() 
     result = thescorer.score_trees(gold_tree, test_tree)
     
-    print('Parse recall : {:.2f}%'.format(result.recall*100))
-    print('Parse precision : {:.2f}%'.format(result.prec*100), end="\n\n")
-    
-    print('POS recall : {:.2f}%'.format(POS_recall[0]*100))
-    print('POS precision : {:.2f}%'.format(POS_precision[0]*100))
-
     return result.recall*100, result.prec*100, POS_recall[0]*100, POS_precision[0]*100
 
 def levenshtein(s1, s2):
@@ -427,6 +436,7 @@ def levenshtein(s1, s2):
     """
     
     n1, n2 = len(s1), len(s2)
+    s1, s2 = s1.lower(), s2.lower()
     lev = np.zeros((n1 + 1, n2 + 1))
     for i in range(n1 + 1):
         lev[i, 0] = i
@@ -542,7 +552,7 @@ def bigram(data):
     np.array of shape (#words_in_data, #words_in_data) containing the probabilities p(word_current|word_previous).
     """
   
-    probas = np.full((len(terminals), len(terminals)), 1e-50)
+    probas = np.ones((len(terminals), len(terminals)))
     for bracketed in data:
         t = Tree.fromstring(bracketed)
         sentence = t.leaves()
@@ -557,7 +567,7 @@ def bigram(data):
 
     return probas/((probas.sum(axis = 1).reshape(-1, 1)))
 
-def closest_formal(s, terminals, n_words = 5, swap = True):
+def closest_formal(s, terminals, n_words = 5, swap = False):
     
     """
     Description
@@ -593,7 +603,7 @@ def closest_embedding(s, terminals, n_words = 10):
     """
     Description
     ---------------
-    Get the terminals within a lower Damerau-Levenshtein (or Levenshtein) distance of thresh to the word s.
+    Get the closest terminals to the word s w.r.t to the cosine distance of their embeddings.
     
     Parameters
     ---------------
@@ -612,7 +622,7 @@ def closest_embedding(s, terminals, n_words = 10):
     return {score_word[1] : score_word[0] for score_word in sorted(zip(map(fun, terminals_embedded), terminals_embedded))[:n_words]}
 
 
-def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True, n_words = 10, n_words_formal = 5):
+def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True, n_words = 10, n_words_formal = 5, lambd = 0.8):
     
     """
     Description
@@ -626,8 +636,8 @@ def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True
     terminals      : Set of all words in the training corpus.
     probas_unigram : 1D np.array of shape (len(terminals),), unigram model trained on the training corpus.
     probas_bigram  : 2D np.array of shape (len(terminals), len(terminals)), bigram model trained on the training corpus.
-    thresh, swap,  : Parameters of closest_formal (see its doc).
-    n_words        : Parameters of closest_embedding (see its doc).
+    n_words, swap  : Parameters of closest_formal (see its doc).
+    lambd          : Float in [0, 1], the interpolation parameter between bigram and unigram models.
     
     Returns
     ---------------
@@ -655,8 +665,7 @@ def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True
             else:
                 scores = []
                 for word in words_proposed:
-#                     bigram = math.log(probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]])
-                    bigram = 0.8*math.log(probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]]) + 0.2*math.log(probas_unigram[dict_terminals_indices[word]])
+                    bigram = math.log(lambd*probas_bigram[dict_terminals_indices[sent[i-1]], dict_terminals_indices[word]] + (1-lambd)*probas_unigram[dict_terminals_indices[word]])
                     score = log_proba + bigram
                     scores.append((score, word))
                 
@@ -664,9 +673,10 @@ def choose_words(sentence, terminals, probas_unigram, probas_bigram, swap = True
             sent[i] = scores[0][1]
             log_proba += scores[0][0]
             
+    sent = [word.lower() for word in sent]
     return sent
 
-def parse(sentence, n_words_formal=2, n_words=20, swap=False):
+def parse(sentence, n_words_formal=2, n_words=20, swap=False, lambd=0.8):
     
     """
     Description
@@ -681,6 +691,7 @@ def parse(sentence, n_words_formal=2, n_words=20, swap=False):
                         - False: Use Levenstein distance.
     n_words_formal : Int, number of closest words w.r.t to the form.
     n_words        : Int, number of closest words w.r.t to the embedding.
+    lambd          : Float in [0, 1], the interpolation parameter between bigram and unigram models.
     
     Returns
     ---------------
@@ -689,7 +700,7 @@ def parse(sentence, n_words_formal=2, n_words=20, swap=False):
     
     sentence = sentence.split(' ')
     sentence_oov = choose_words(sentence, terminals, probas_unigram, probas_bigram, n_words_formal=n_words_formal, 
-                                n_words=n_words, swap=swap)
+                                n_words=n_words, swap=swap, lambd=lambd)
     scores, back = cyk(sentence_oov)
     bracketed = build_parentheses(back, scores, sentence)
     t_test = Tree.fromstring(bracketed)
@@ -701,15 +712,16 @@ if __name__ == '__main__':
     
     argparser = argparse.ArgumentParser(description='Parse options')
     
-    argparser.add_argument('--data_train', type=str, default='sequoia-corpus+fct.mrg_strict', metavar='D', help="File containing training data")
-    argparser.add_argument('--data_test', type=str, metavar='DT', help="File containinf test data")
-    argparser.add_argument('--train_eval', type=int, default=0, metavar='TA', help="1: train on the first 90% and test on the last 10% of the data ; 0: train on 100% of tha data without evaluation.")
-    argparser.add_argument('--eval_name', type=str, default='evaluation_data.parser_output', metavar='EV', help="Name of the evaluation file")
-    argparser.add_argument('--test_name', type=str, default='test_data.parser_output', metavar='TE', help="Name of the test file")
-    argparser.add_argument('--n_words_formal', type=int, default=2, metavar='WF', help="See choose_words doc")
-    argparser.add_argument('--n_words', type=int, default=20, metavar='W', help="See choose_words doc")
-    argparser.add_argument('--swap', type=int, default=0, metavar='SW', help="0:Levenstaine; 1:DL")
-    
+    argparser.add_argument('--data_train', type=str, default='sequoia-corpus+fct.mrg_strict', help="File containing training data.")
+    argparser.add_argument('--data_test', type=str, default='test_data', help="File containing test data.")
+    argparser.add_argument('--train_eval', action='store_true', help="Whether to split the data into train-eval datasets or train on the whole training set.")
+    argparser.add_argument('--train_size', type=float, default=0.9, help="Ratio of the data to train on, used only with train_eval option.")
+    argparser.add_argument('--output_name', type=str, default='output_parse',help="Name of the output parse file.")
+    argparser.add_argument('--n_words_formal', type=int, default=2, help="See choose_words doc.")
+    argparser.add_argument('--n_words', type=int, default=20, help="See choose_words doc.")
+    argparser.add_argument('--swap', action='store_true', help="Use Damerau-Levenstein distance when true and Levenstein distance otherwise.")
+    argparser.add_argument('--lambd', type=float, default=0.8, help="Float in [0, 1], the interpolation parameter between bigram and unigram models.")
+
     args = argparser.parse_args()
     
     # Load the training data
@@ -718,8 +730,9 @@ if __name__ == '__main__':
     
     file.close()
     if args.train_eval:
-        data_test = data[9*len(data)//10:]
-        data = data[:9*len(data)//10]
+        n_lines = int(args.train_size*len(data))
+        data_test = data[n_lines:]
+        data = data[:n_lines]
         # Prepare evaluation data, only keep the space-tokenized sentence from the bracketed parse.
         data_test_sentences = []
         for bracketed in data_test:
@@ -746,6 +759,7 @@ if __name__ == '__main__':
     
     # Create pcfg
     dict_pcfg, dict_probas = pcfg(data)
+    print('Creating the PCFG : Finished')
     
     # Sets of left hand nodes and right hand nodes in binary rules.
     B_binary, C_binary = set([binary[0] for binary in dict_probas['binary'].keys()]), set([binary[1] for binary in dict_probas['binary'].keys()])
@@ -761,6 +775,7 @@ if __name__ == '__main__':
     
     # Define language model.
     probas_unigram, probas_bigram = unigram(data), bigram(data)
+    print('Defining the language model : Finished')
     
     print('Starting the evaluation')
     if args.train_eval:
@@ -768,12 +783,12 @@ if __name__ == '__main__':
         start_time = time()
         i=0
         for sentence in data_test_sentences:
-            parses.append(parse(sentence, n_words_formal=args.n_words_formal, n_words=args.n_words, swap=args.swap))
+            parses.append(parse(sentence, n_words_formal=args.n_words_formal, n_words=args.n_words, swap=args.swap, lambd=args.lambd))
             i+=1
             if i%50 == 0:
-                print(i)
+                print('Number of treated sentences %d' %i)
             
-        print('evaluation time : %.2f' %(time() - start_time))
+        print('evaluation time : %.2f s' %(time() - start_time))
         
         parse_recalls, parse_precisions, pos_recalls, pos_precisions = [], [], [], []
         for i in range(len(parses)):
@@ -782,13 +797,13 @@ if __name__ == '__main__':
             parse_precisions.append(parse_precision)
             pos_recalls.append(pos_recall)
             pos_precisions.append(pos_precision)
-            
+        
         print('parse recalls mean : %.2f' %np.mean(parse_recalls))
         print('parse precisions mean : %.2f' %np.mean(parse_precisions))
         print('pos recalls mean : %.2f' %np.mean(pos_recalls))
         print('pos precisions mean : %.2f' %np.mean(pos_precisions))
         
-        file = open(args.eval_name, 'w', encoding='utf-8')
+        file = open(args.output_name, 'w', encoding='utf-8')
         for i in range(len(parses)-1):
             file.write(parses[i]+'\n')
 
@@ -804,14 +819,14 @@ if __name__ == '__main__':
         start_time = time()
         i=0
         for sentence in data_test_sentences:
-            parses.append(parse(sentence, n_words_formal=args.n_words_formal, n_words=args.n_words, swap=args.swap))
+            parses.append(parse(sentence, n_words_formal=args.n_words_formal, n_words=args.n_words, swap=args.swap, lambd=args.lambd))
             i+=1
             if i%50 == 0:
-                print(i)
+                print('Number of treated sentences %d' %i)
             
         print('test time : %.2f' %(time() - start_time))
         
-        file = open(args.test_name, 'w', encoding='utf-8')
+        file = open(args.output_name, 'w', encoding='utf-8')
         for i in range(len(parses)-1):
             file.write(parses[i]+'\n')
 
